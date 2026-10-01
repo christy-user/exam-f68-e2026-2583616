@@ -1,29 +1,110 @@
-name: CI
-
+name: CI – FastAPI
+ 
 on:
   pull_request:
-    branches:
-      - develop
-
+    branches: [main]
+  push:
+    branches: [dev]
+ 
+permissions:
+  contents: read
+ 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-
+  linting:
+    runs-on: ubuntu-24.04
     steps:
+      # Runer infos
+      - name: Runner infos
+        run: |
+          echo "Runner name : $RUNNER_NAME"
+          echo "Runner OS   : $RUNNER_OS"
+      # Récupérer le code
       - name: Checkout code
         uses: actions/checkout@v4
-
+      # Configurer Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-
-      - name: Install dependencies
+          python-version: "3.10"
+      # Linting – qualité du code
+      - name: Lint with flake8
+        run: |
+          pip install flake8
+          flake8 app tests --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 app tests --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+  type-check:
+    runs-on: ubuntu-24.04
+    needs: linting
+    steps:
+      # Runer infos
+      - name: Runner infos
+        run: |
+          echo "Runner name : $RUNNER_NAME"
+          echo "Runner OS   : $RUNNER_OS"
+      # Récupérer le code
+      - name: Checkout code
+        uses: actions/checkout@v4
+      # Configurer Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      # Linting – qualité du code
+      - name: run type checking
+        run: |
+          pip install mypy
+          if [ -f mypy.ini ] || [ -f pyproject.toml ]; then 
+            mypy app tests 
+          else 
+            echo "mypy config absent, étape ignorée" 
+          fi
+  tests:
+    runs-on: ubuntu-24.04
+    needs: [linting, type-check]
+    steps:
+      # Runer infos
+      - name: Runner infos
+        run: |
+          echo "Runner name : $RUNNER_NAME"
+          echo "Runner OS   : $RUNNER_OS"
+      # Récupérer le code
+      - name: Checkout code
+        uses: actions/checkout@v4
+      # Configurer Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      # Installer les dépendances dev
+      - name: Install dependencies (dev)
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-cov
-
-      - name: Run tests with coverage
+          pip install -r app/requirements.txt
+          pip list
+      # Tests unitaires / async
+      - name: Run tests
         run: |
-          pytest --cov=app
+          export PYTHONPATH=$(pwd)
+          pytest --maxfail=1 --disable-warnings -q --cov=app --cov-report=term-missing
+  security:
+    runs-on: ubuntu-24.04
+    needs: tests
+    steps:
+      # Runer infos
+      - name: Runner infos
+        run: |
+          echo "Runner name : $RUNNER_NAME"
+          echo "Runner OS   : $RUNNER_OS"
+      # Récupérer le code
+      - name: Checkout code
+        uses: actions/checkout@v4
+      # Configurer Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      # Vérifier la sécurité des dépendances (optionnel)       
+      - name: Check for security issues         
+        run: |  
+         pip install safety      
+         safety check -r app/requirements.txt || true

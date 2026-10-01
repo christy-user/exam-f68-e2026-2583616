@@ -3,7 +3,7 @@ name: CI – FastAPI
 on:
   pull_request:
     branches: [develop]
-
+    
 permissions:
   contents: read
 
